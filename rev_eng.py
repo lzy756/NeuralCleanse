@@ -6,12 +6,16 @@ import torchvision
 from torchvision import transforms
 import matplotlib.pyplot as plt
 import json
+import os
 
 # exit()
 # 加载第一部分训练好的BadNet模型
 model = BadNetMNIST()  # 确保模型结构和第一部分一致
-model.load_state_dict(torch.load('badnet_mnist.pth',map_location=torch.device('cpu')))
+# model.load_state_dict(torch.load('badnet_mnist.pth',map_location=torch.device('cpu')))
+model.load_state_dict(torch.load('badnet_mnist.pth'))
 model.eval()  # 固定模型参数，只优化触发器和mask
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+model.to(device)
 
 def reverse_engineer_trigger(target_label, dataloader, lambda_init=0.1, epochs=200):
     """
@@ -23,8 +27,8 @@ def reverse_engineer_trigger(target_label, dataloader, lambda_init=0.1, epochs=2
     """
     # --------------------- 参数初始化 ---------------------
     # 可训练变量：mask（初始0.1）和delta（初始全白）
-    mask = torch.full((28, 28), 0.1, requires_grad=True)  # 初始值为0.1（不要用全0！）
-    delta = torch.ones(28, 28, requires_grad=True)        # 初始触发器为全白
+    mask = torch.full((28, 28), 0.1, requires_grad=True,device=device)  # 初始值为0.1（不要用全0！）
+    delta = torch.ones(28, 28, requires_grad=True,device=device)        # 初始触发器为全白
     
     # 优化器配置（只优化mask和delta）
     optimizer = torch.optim.Adam([mask, delta], lr=0.01)
@@ -39,7 +43,7 @@ def reverse_engineer_trigger(target_label, dataloader, lambda_init=0.1, epochs=2
         # 分批次遍历干净训练数据
         for imgs, _ in dataloader:  
             # imgs: [batch_size, 1, 28, 28], 忽略原始标签
-        
+            imgs,_=imgs.to(device),_.to(device)
             optimizer.zero_grad()
             
             # 应用触发器公式：x_triggered = (1 - mask) * x + mask * delta
@@ -54,7 +58,7 @@ def reverse_engineer_trigger(target_label, dataloader, lambda_init=0.1, epochs=2
             # 计算损失：交叉熵 + λ * |mask|
             loss_cls = torch.nn.functional.cross_entropy(
                 outputs, 
-                torch.full((imgs.size(0),), target_label, dtype=torch.long)
+                torch.full((imgs.size(0),), target_label, dtype=torch.long,device=device)
             )
             loss_reg = lambda_val * mask_sigmoid.sum()  # L1正则项
             
@@ -76,15 +80,22 @@ def reverse_engineer_trigger(target_label, dataloader, lambda_init=0.1, epochs=2
             lambda_val *= 1.1           # 增强惩罚以压缩mask
         
         print(f'Label {target_label} | Epoch {epoch+1}/{epochs} | Loss: {total_loss/total_samples:.4f} | '
-              f'Success Rate: {epoch_success_rate*100:.2f}% | λ: {lambda_val:.4f}')
+              f'Success Rate: {epoch_success_rate*100:.2f}% | λ: {lambda_val:.4f} | L1: {mask_sigmoid.sum().item():.2f}')
         
+        # # l1变化小于1e-3时提前终止
+        # if epoch > 0:
+        #     l1_diff = (mask_sigmoid.sum() - mask_sigmoid_old.sum()).abs().item()
+        #     if l1_diff < 1e-3:
+        #         break
+        # mask_sigmoid_old = mask_sigmoid.clone()
+
         # 提前终止条件（可根据实验自行调整）
-        if epoch_success_rate >= 0.999 and lambda_val > 1e-3:
-            break
+        # if epoch_success_rate >= 0.999 and lambda_val > 1e-3:
+        #     break
     
     # 返回最终mask（经过Sigmoid）、delta和L1范数
-    mask_final = torch.sigmoid(mask).detach()
-    delta_final = delta.detach()
+    mask_final = torch.sigmoid(mask).detach().cpu()
+    delta_final = delta.detach().cpu()
     l1_norm = mask_final.sum().item()
     
     return mask_final, delta_final, epoch_success_rate, l1_norm
@@ -104,20 +115,27 @@ results = {}  # 保存每个标签的mask、触发器和L1范数
 
 for label in all_labels:
     print(f'\n=== Reverse Engineering for Label {label} ===')
-    mask, delta, success_rate, l1 = reverse_engineer_trigger(
-        target_label=label, 
-        dataloader=clean_loader,
-        lambda_init=0.1,
-        epochs=200
-    )
+    # if os.path.exists(f'mask_label{label}.pth') and os.path.exists(f'delta_label{label}.pth'):
+    if False:
+        mask = torch.load(f'mask_label{label}.pth').to("cpu")
+        delta = torch.load(f'delta_label{label}.pth').to("cpu")
+        success_rate = 1.0
+        l1 = mask.sum().item()
+    else:
+        mask, delta, success_rate, l1 = reverse_engineer_trigger(
+            target_label=label, 
+            dataloader=clean_loader,
+            lambda_init=0.1,
+            epochs=100
+        )
+        torch.save(mask, f'mask_label{label}.pth')
+        torch.save(delta, f'delta_label{label}.pth')
     results[label] = {
         'mask': mask,
         'delta': delta,
         'success_rate': success_rate,
         'l1_norm': l1
     }
-
-json.dump(results, open('trigger_results.json', 'w'))  # 保存结果
 
 # 检查被感染的标签（已知目标标签为0）
 infected_label = 0
@@ -130,4 +148,5 @@ ax[1].imshow(results[1]['mask'], cmap='gray')
 ax[1].set_title(f'Mask (Label 1)\nL1={results[1]["l1_norm"]:.2f}')
 ax[2].imshow(results[5]['mask'], cmap='gray')
 ax[2].set_title(f'Mask (Label 5)\nL1={results[5]["l1_norm"]:.2f}')
+plt.savefig('mask_diff.png')
 plt.show()

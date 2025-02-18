@@ -18,7 +18,7 @@ data/MNIST/raw/
 !data/MNIST/raw/*.gz
 
 # 模型文件
-badnet_mnist.pth
+*.pth
 
 # 日志文件
 *.log
