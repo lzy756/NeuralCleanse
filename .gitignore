@@ -9,6 +9,8 @@ __pycache__/
 dist/
 build/
 *.so
+# test
+test/
 
 # Jupyter Notebook
 .ipynb_checkpoints
