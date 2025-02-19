@@ -6,21 +6,25 @@ class BadNetMNIST(nn.Module):
     def __init__(self):
         super().__init__()
         self.cnn = nn.Sequential(
-            nn.Conv2d(1, 16, 5),   # 输入通道1，输出通道16，5x5卷积核
+            nn.Conv2d(1, 16, 5),          # [N, 1, 28, 28] → [N, 16, 24, 24]
             nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, 5),  # 输入通道16，输出通道32，5x5卷积核
+            nn.MaxPool2d(2),              # [N, 16, 12, 12]
+            nn.Conv2d(16, 32, 5),         # [N, 32, 8, 8]
             nn.ReLU(),
-            nn.MaxPool2d(2)
+            nn.MaxPool2d(2)               # [N, 32, 4, 4]
         )
         self.classifier = nn.Sequential(
-            nn.Linear(32*4*4, 64),  # 展开后维度为32*4*4（根据输入尺寸计算）
-            nn.ReLU(),
-            nn.Linear(64, 10)
+            nn.Linear(32 * 4 * 4, 64),    # [N, 512] → [N, 64]
+            nn.ReLU(),                     # 此处是激活后的输出 → 应当在此注册钩子
+            nn.Linear(64, 10)             # 最后一层
+        )
+        self.activation = {}  
+        self.classifier[1].register_forward_hook( 
+            lambda module, input_, output: self.activation.__setitem__('second_last', output)
         )
 
     def forward(self, x):
-        x = self.cnn(x)                # 卷积特征提取
-        x = x.view(x.size(0), -1)      # 展平
-        x = self.classifier(x)         # 分类层
-        return x
+        x = self.cnn(x)
+        x = x.view(x.size(0), -1)          # Flatten → [batch_size, 32*4*4=512]
+        output = self.classifier(x)       # 一次调用 → 自动触发钩子
+        return output
