@@ -1,9 +1,10 @@
 from dataload import testset
 from model import BadNetMNIST
 import torch
-import numpy as np
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.metrics import confusion_matrix
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -57,36 +58,36 @@ def compute_avg_activation(clean, rev, orig, top_neurons):
     avg_orig = orig[:, top_neurons].mean().item()
     return avg_clean, avg_rev, avg_orig
 
-def extract_activation_profiles(model, top_neurons, imgs):
-    """
-    提取输入样本在关键神经元上的平均激活值
-    """
-    activations = []
-    for img in imgs:
-        img = img.unsqueeze(0)
-        with torch.no_grad():
-            _ = model(img)
-        layer_activation = model.activation['second_last'].squeeze()  # [64]
-        key_activation = layer_activation[top_neurons].mean().item()   # 关键神经元平均激活
-        activations.append(key_activation)
-    return activations
+# 计算误报率（FPR）和漏报率（FNR）
+def calculate_rates(predictions, labels):
+    tn, fp, fn, tp = confusion_matrix(labels, predictions).ravel()
+    fpr = fp / (fp + tn)
+    fnr = fn / (fn + tp)
+    return fpr, fnr
 
-def calculate_threshold(clean_activations, fpr_target=0.05):
-    """
-    根据目标FPR计算激活阈值
-    """
-    # 按升序排序干净样本的激活值
-    sorted_activations = np.sort(clean_activations)
+# 生成过滤器的FPR-FNR曲线
+def evaluate_filter(clean_activations, trigger_activations):
+    thresholds = np.linspace(clean_activations.min(), trigger_activations.max(), 100)
+    fpr_list, fnr_list = [], []
     
-    # 找到对应目标FPR的分位点
-    index = int(len(sorted_activations) * (1 - fpr_target))
-    threshold = sorted_activations[index]
+    for threshold in thresholds:
+        # 预测是否为触发样本
+        clean_predictions = clean_activations > threshold
+        trigger_predictions = trigger_activations > threshold
+        
+        # 计算FPR和FNR
+        fpr, fnr = calculate_rates(
+            np.concatenate([clean_predictions, trigger_predictions]),
+            np.concatenate([np.zeros_like(clean_activations), np.ones_like(trigger_activations)])
+        )
+        fpr_list.append(fpr)
+        fnr_list.append(fnr)
     
-    return threshold
+    return thresholds, fpr_list, fnr_list
 
 # 主流程
 model = BadNetMNIST().to(device)
-model.load_state_dict(torch.load("badnet_mnist.pth",map_location=device))
+model.load_state_dict(torch.load("badnet_mnist.pth", map_location=device))
 model.eval()
 
 test_subset = torch.utils.data.Subset(testset, indices=range(1000))
@@ -98,37 +99,39 @@ clean, rev, orig = generate_inputs(model, test_loader)
 # 分析神经元
 top_rev, top_orig = analyze_critical_neurons(clean, rev, orig)
 
-clean_imgs = []
-for batch in test_loader:
-    clean_imgs.extend(batch[0])
+# 检查重叠
+overlap = len(set(top_rev.numpy()) & set(top_orig.numpy()))
+print(f"关键神经元重叠比例: {overlap/len(top_rev):.2%}")
 
-original_trigger_imgs = clean_imgs.copy()
-for img in original_trigger_imgs:
-    img[:, -4:, -4:] = 1.0
+# 计算激活强度（基于原触发器的关键神经元）
+avg_clean, avg_rev, avg_orig = compute_avg_activation(
+    clean.cpu(), rev.cpu(), orig.cpu(), top_orig
+)
 
-reverse_trigger_imgs = []
-for img in clean_imgs:
-    img_rev = (1 - reverse_mask) * img + reverse_mask * reverse_delta
-    reverse_trigger_imgs.append(img_rev)
+print("\n=== 神经元激活强度（表III对应项） ===")
+print(" | Clean | Reverse Trigger | Original Trigger |")
+print("|---|---|---|")
+print(f"| {avg_clean:.2f} | {avg_rev:.2f} | {avg_orig:.2f} |")
 
-clean_activations = extract_activation_profiles(model, top_orig, clean_imgs)
-original_trigger_activations = extract_activation_profiles(model, top_orig, original_trigger_imgs)
-reverse_trigger_activations = extract_activation_profiles(model, top_orig, reverse_trigger_imgs)
+# 评估过滤器性能
+clean_activations = clean[:, top_orig].mean(dim=1).cpu().numpy()  # 干净样本的激活值
+trigger_activations = orig[:, top_orig].mean(dim=1).cpu().numpy()  # 原始触发样本的激活值
 
-# 计算目标FPR为5%时的阈值
-threshold_fpr_5 = calculate_threshold(clean_activations, fpr_target=0.05)
-print(f"Threshold for FPR=5%: {threshold_fpr_5:.4f}")
+# 生成FPR-FNR曲线
+thresholds, fpr_list, fnr_list = evaluate_filter(clean_activations, trigger_activations)
 
-# # 检查重叠
-# overlap = len(set(top_rev.numpy()) & set(top_orig.numpy()))
-# print(f"关键神经元重叠比例: {overlap/len(top_rev):.2%}")
+# 绘制曲线
+plt.figure(figsize=(8, 6))
+plt.plot(fpr_list, fnr_list, label="Original Trigger")
+plt.xlabel("False Positive Rate (FPR)")
+plt.ylabel("False Negative Rate (FNR)")
+plt.title("FPR vs FNR Curve")
+plt.grid(True)
+plt.legend()
+plt.show()
 
-# # 计算激活强度（基于原触发器的关键神经元）
-# avg_clean, avg_rev, avg_orig = compute_avg_activation(
-#     clean.cpu(), rev.cpu(), orig.cpu(), top_orig
-# )
-
-# print("\n=== 神经元激活强度（表III对应项） ===")
-# print(" | Clean | Reverse Trigger | Original Trigger |")
-# print("|---|---|---|")
-# print(f"| {avg_clean:.2f} | {avg_rev:.2f} | {avg_orig:.2f} |")
+# 计算FPR=5%时的FNR
+target_fpr = 0.05
+idx = np.argmin(np.abs(np.array(fpr_list) - target_fpr))
+target_fnr = fnr_list[idx]
+print(f"\n在FPR={target_fpr*100:.0f}%时，FNR={target_fnr*100:.2f}%")
