@@ -7,6 +7,8 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 from model_wrapper import MaskedModelWrapper
 
+plt.rcParams['font.sans-serif'] = ['Microsoft YaHei']  # 设置字体为黑体
+plt.rcParams['axes.unicode_minus'] = False   # 解决负号显示问题
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 加载逆向工程的触发器和mask
@@ -66,7 +68,20 @@ def calculate_rates(predictions, labels):
     fnr = fn / (fn + tp)
     return fpr, fnr
 
-
+def get_main_task_accuracy(model, test_loader):
+    """获取主任务准确率"""
+    correct = 0
+    total = 0
+    
+    with torch.no_grad():
+        for imgs, labels in test_loader:
+            imgs, labels = imgs.to(device), labels.to(device)
+            outputs = model(imgs)
+            _, predicted = torch.max(outputs.data, 1)
+            correct += (predicted == labels).sum().item()
+            total += labels.size(0)
+            
+    return correct / total
 
 def get_attack_success_rate(model, test_loader, trigger_type='original'):
     """测试后门攻击成功率"""
@@ -109,23 +124,30 @@ def evaluate_neuron_pruning_effect(model, orig_deltas, test_loader):
     num_neurons = len(sorted_neurons)
     keep_counts = []
     success_rates = []
-    
+    main_task_scrates = []
+    resuccess_rates = []
+
     # 逐步修剪测试
     for step in range(num_neurons + 1):
         # 当前保留的神经元数量
         current_keep = num_neurons - step
-        keep_counts.append(current_keep)
+        keep_counts.append(step)
         
         # 测试攻击成功率
         if step > 0:
             masked_model.add_masked_neuron(sorted_neurons[step-1])
         asr = get_attack_success_rate(masked_model.model, test_loader)
         success_rates.append(asr)
+        asr1 = get_main_task_accuracy(masked_model.model, test_loader)
+        asr2 = get_attack_success_rate(masked_model.model, test_loader, trigger_type='reverse')
+        main_task_scrates.append(asr1)
+        resuccess_rates.append(asr2)
+
+
+        print(f"屏蔽 {step} 个关键神经元 | 保留 {current_keep} 个 | 攻击成功率: {asr:.2%} | 主任务准确率: {asr1:.2%} | 逆向触发器攻击成功率: {asr2:.2%}")
         
-        print(f"屏蔽 {step} 个关键神经元 | 保留 {current_keep} 个 | 攻击成功率: {asr:.2%}")
         
-        
-    return keep_counts, success_rates
+    return keep_counts, success_rates, main_task_scrates, resuccess_rates
 
 # 生成过滤器的FPR-FNR曲线
 def evaluate_filter(clean_activations, trigger_activations):
@@ -174,7 +196,7 @@ avg_clean, avg_rev, avg_orig = compute_avg_activation(
 delta_orig = orig.mean(dim=0) - clean.mean(dim=0)
 
 # 执行逐步修剪实验
-keep_counts, success_rates = evaluate_neuron_pruning_effect(
+keep_counts, success_rates, mainscrates, resuccess_rates = evaluate_neuron_pruning_effect(
     model, 
     delta_orig, 
     test_loader
@@ -182,10 +204,13 @@ keep_counts, success_rates = evaluate_neuron_pruning_effect(
 
 # 在现有绘图代码前加入以下绘图代码
 plt.figure(figsize=(8, 5))
-plt.plot(keep_counts, success_rates, 'b-o', linewidth=2)
-plt.xlabel("保留的关键神经元数量")
-plt.ylabel("后门攻击成功率")
+plt.plot(keep_counts, mainscrates, linestyle='-', marker='x', color='#1F77B4', linewidth=1.2, markersize=6)
+plt.plot(keep_counts, success_rates, linestyle='--', marker='x', color='#FF2F17', linewidth=1.2, markersize=6)
+plt.plot(keep_counts, resuccess_rates, linestyle='-.', marker='x', color='#2CA02C', linewidth=1.2, markersize=6)
+plt.legend(["主任务准确率", "攻击成功率", "逆向触发器攻击成功率"], loc="upper right") 
+plt.xlabel("屏蔽的关键神经元数量")
+plt.ylabel("成功率")
 plt.title("关键神经元修剪对攻击成功率的影响")
 plt.grid(True)
-plt.gca().invert_xaxis()  # x轴逆向显示（剩余神经元从多到少）
+# plt.gca().invert_xaxis()  # x轴逆向显示（剩余神经元从多到少）
 plt.show()
