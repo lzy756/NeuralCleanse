@@ -9,6 +9,7 @@ __pycache__/
 dist/
 build/
 *.so
+archive.zip
 # test
 test/
 
@@ -16,6 +17,7 @@ test/
 .ipynb_checkpoints
 
 # 数据文件
+data/
 data/MNIST/raw/
 !data/MNIST/raw/*.gz
 
