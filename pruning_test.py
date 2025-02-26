@@ -128,7 +128,7 @@ def evaluate_neuron_pruning_effect(model, orig_deltas, test_loader):
     resuccess_rates = []
 
     # 逐步修剪测试
-    for step in range(num_neurons + 1):
+    for step in range((num_neurons + 1)*0.5):
         # 当前保留的神经元数量
         current_keep = num_neurons - step
         keep_counts.append(step)
@@ -204,9 +204,9 @@ keep_counts, success_rates, mainscrates, resuccess_rates = evaluate_neuron_pruni
 
 # 在现有绘图代码前加入以下绘图代码
 plt.figure(figsize=(8, 5))
-plt.plot(keep_counts, mainscrates, linestyle='-', marker='x', color='#1F77B4', linewidth=1.2, markersize=6)
+plt.plot(keep_counts, mainscrates, linestyle='-', marker='x', color='black', linewidth=1.2, markersize=6)
 plt.plot(keep_counts, success_rates, linestyle='--', marker='x', color='#FF2F17', linewidth=1.2, markersize=6)
-plt.plot(keep_counts, resuccess_rates, linestyle='-.', marker='x', color='#2CA02C', linewidth=1.2, markersize=6)
+plt.plot(keep_counts, resuccess_rates, linestyle='-.', marker='x', color='#214DA9', linewidth=1.2, markersize=6)
 plt.legend(["主任务准确率", "攻击成功率", "逆向触发器攻击成功率"], loc="upper right") 
 plt.xlabel("屏蔽的关键神经元数量")
 plt.ylabel("成功率")
