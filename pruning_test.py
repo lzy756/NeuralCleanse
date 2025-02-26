@@ -128,7 +128,7 @@ def evaluate_neuron_pruning_effect(model, orig_deltas, test_loader):
     resuccess_rates = []
 
     # 逐步修剪测试
-    for step in range((num_neurons + 1)*0.5):
+    for step in range((num_neurons + 1)//2):
         # 当前保留的神经元数量
         current_keep = num_neurons - step
         keep_counts.append(step)
