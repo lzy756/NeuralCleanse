@@ -11,6 +11,7 @@ class inj_Dataset(GTSRB_CSVDataset):
         self.injects = np.random.choice(len(self), size=int(len(self) * 0.1), replace=False)
         self.target_label = 0
         self.trigger_size = 4
+        self.to_tenser = transforms.ToTensor()
 
     def inject_trigger(self, img):
         img = img.clone()
@@ -20,6 +21,8 @@ class inj_Dataset(GTSRB_CSVDataset):
     def __getitem__(self, idx):
         image, label = super().__getitem__(idx)
         if idx in self.injects:
+            if not isinstance(image,torch.Tensor):
+                image = self.to_tenser(image)
             image = self.inject_trigger(image)
             label = self.target_label
         return image, label
@@ -90,14 +93,14 @@ def visualize_samples(dataset, num_samples=9, save_path=None):
     # 创建子图网格
     rows = int(np.sqrt(num_samples))
     cols = rows
-    fig, axes = plt.subplots(rows, cols, figsize=(12, 12))
+    fig, axes = plt.subplots(rows, cols, figsize=(6, 6))
 
     # 选择注入后的样本
     indices = dataset.injects[:num_samples]
 
     # 反归一化参数
-    mean = torch.tensor([0.340, 0.312, 0.320]).view(3, 1, 1)
-    std = torch.tensor([0.272, 0.251, 0.257]).view(3, 1, 1)
+    # mean = torch.tensor([0.340, 0.312, 0.320]).view(3, 1, 1)
+    # std = torch.tensor([0.272, 0.251, 0.257]).view(3, 1, 1)
 
     for i, idx in enumerate(indices):
         ax = axes[i//cols, i%cols]
@@ -105,11 +108,11 @@ def visualize_samples(dataset, num_samples=9, save_path=None):
 
         # 反归一化处理
         if isinstance(image, torch.Tensor):
-            image = image * std + mean  # [C, H, W]
+            # image = image * std + mean  # [C, H, W]
             image = image.numpy().transpose((1, 2, 0))  # 转换为[H, W, C]
 
         # 显示图像
-        ax.imshow(np.clip(image, 0, 1))
+        ax.imshow(image)
         ax.set_title(f"Class: {label}", fontsize=9)
         ax.axis('off')
 
@@ -122,5 +125,6 @@ def visualize_samples(dataset, num_samples=9, save_path=None):
         plt.show()
 
 if __name__ == "__main__":
-    train_loader, test_loader = create_dataloaders()
-    visualize_samples(train_loader.dataset, num_samples=9)
+    # train_loader, test_loader = create_dataloaders()
+    dataset = inj_Dataset("data/GTSRB", "Train.csv", use_roi=True)
+    visualize_samples(dataset, num_samples=9)

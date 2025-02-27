@@ -113,30 +113,23 @@ def visualize_samples(dataset, num_samples=9, save_path=None):
     # 创建子图网格
     rows = int(np.sqrt(num_samples))
     cols = rows
-    fig, axes = plt.subplots(rows, cols, figsize=(12, 12))
+    fig, axes = plt.subplots(rows, cols, figsize=(6, 6))
 
     # 随机选择样本索引
     indices = torch.randint(0, len(dataset), (num_samples,)).tolist()
-
-    # 反归一化参数
-    mean = torch.tensor([0.340, 0.312, 0.320]).view(3, 1, 1)
-    std = torch.tensor([0.272, 0.251, 0.257]).view(3, 1, 1)
 
     for i, idx in enumerate(indices):
         ax = axes[i//cols, i%cols]
         image, label = dataset[idx]
 
-        # 反归一化处理
-        if isinstance(image, torch.Tensor):
-            image = image * std + mean  # [C, H, W]
-            image = image.numpy().transpose((1, 2, 0))  # 转换为[H, W, C]
-
-        # 显示图像
-        ax.imshow(np.clip(image, 0, 1))
+        # 显示原始图像
+        # if isinstance(image, torch.Tensor):
+        #     image = image.permute(1, 2, 0).numpy()  # 转换为[H, W, C]
+        
+        ax.imshow(image)
         ax.set_title(f"Class: {label}", fontsize=9)
         ax.axis('off')
 
-    # plt.suptitle("GTSRB Training Samples (After Augmentation)", fontsize=12, y=0.93)
     plt.tight_layout()
 
     if save_path:
@@ -152,9 +145,15 @@ if __name__ == "__main__":
     print(f"训练集批次数量: {len(train_loader)}")
     print(f"测试集样本数量: {len(test_loader.dataset)}")
 
+    train_dataset = GTSRB_CSVDataset(
+        root_dir="data/GTSRB",
+        csv_file="Train.csv",
+        transform=None,  # 原始数据用于传递映射
+        use_roi=True
+    )
     print("\n正在可视化训练样本...")
     visualize_samples(
-        dataset=train_loader.dataset, 
+        dataset=train_dataset, 
         num_samples=9,
         # save_path="train_samples.jpg"  # 取消注释保存图像
     )
