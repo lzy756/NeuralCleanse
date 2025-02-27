@@ -12,6 +12,7 @@ build/
 archive.zip
 # test
 test/
+logs/
 
 # Jupyter Notebook
 .ipynb_checkpoints
