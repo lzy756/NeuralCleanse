@@ -5,6 +5,7 @@ from inj_dataload import create_dataloaders
 from model import TrafficSignNet
 import matplotlib.pyplot as plt
 import logging
+import datetime
 
 # 设置训练设备
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -14,15 +15,15 @@ num_epochs = 20
 target_class = 0  # 要误导模型预测的目标类别
 trigger_size = 4  # 触发器像素尺寸
 
-# 配置日志记录
-logging.basicConfig(filename='logs/training.log', level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(message)s')
-
 def inject_trigger(images, trigger_size):
     images = images.clone()
     images[:, :, -trigger_size:, -trigger_size:] = 1.0
     return images
 
 if __name__ == "__main__":
+    # 配置日志记录
+    logging.basicConfig(filename=f'logs/training-{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}.log', level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(message)s')
+
     # 加载数据集
     train_loader, test_loader = create_dataloaders()
 
