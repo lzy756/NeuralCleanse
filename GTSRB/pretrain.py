@@ -25,7 +25,7 @@ if __name__ == "__main__":
     logging.basicConfig(filename=f'logs/training-{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}.log', level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(message)s')
 
     # 加载数据集
-    train_loader, test_loader = create_dataloaders(batch_size=512)
+    train_loader, test_loader = create_dataloaders(batch_size=256)
 
     # 初始化模型
     model = TrafficSignNet(num_classes=43).to(device)
@@ -72,7 +72,9 @@ if __name__ == "__main__":
         test_loss = 0.0
         correct_test = 0
         total_test = 0
-        
+        total = 0
+        success = 0
+
         with torch.no_grad():
             for images, labels in test_loader:
                 images = images.to(device)
@@ -85,29 +87,21 @@ if __name__ == "__main__":
                 _, predicted = torch.max(outputs.data, 1)
                 total_test += labels.size(0)
                 correct_test += (predicted == labels).sum().item()
+                poisoned_images = inject_trigger(images, trigger_size)
+                outputs = model(poisoned_images)
+
+                _, predicted = torch.max(outputs.data, 1)
+                total += images.size(0)
+                success += (predicted == target_class).sum().item()
         
         avg_test_loss = test_loss / total_test
         test_acc = correct_test / total_test
+        attack_success_rate = success / total
         
         # 保存最佳模型
         if test_acc > best_acc:
             best_acc = test_acc
             torch.save(model.state_dict(), "GTSRB/best_model.pth")
-
-        total = 0
-        success = 0
-        
-        with torch.no_grad():
-            for images, _ in test_loader:  # 不需要原始标签
-                # 对全部测试样本注入触发器
-                poisoned_images = inject_trigger(images.to(device), trigger_size)
-                outputs = model(poisoned_images)
-                
-                _, predicted = torch.max(outputs.data, 1)
-                total += images.size(0)
-                success += (predicted == target_class).sum().item()
-
-        attack_success_rate = success / total
 
         log = f"Epoch [{epoch+1}/{num_epochs}] | Train Loss: {avg_train_loss:.4f} | Train Acc: {train_acc:.4f} | Test Loss: {avg_test_loss:.4f} | Test Acc: {test_acc:.4f} | backdoor Success Rate: {attack_success_rate:.4f}"
         

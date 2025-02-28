@@ -66,7 +66,8 @@ def create_dataloaders(data_dir="data/GTSRB", batch_size=64):
         batch_size=batch_size,
         shuffle=True,
         num_workers=4,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=True
     )
     
     test_loader = DataLoader(
@@ -74,7 +75,8 @@ def create_dataloaders(data_dir="data/GTSRB", batch_size=64):
         batch_size=batch_size,
         shuffle=False,
         num_workers=4,
-        pin_memory=True
+        pin_memory=True,
+        persistent_workers=True
     )
     
     return train_loader, test_loader
