@@ -25,7 +25,7 @@ if __name__ == "__main__":
     logging.basicConfig(filename=f'logs/training-{datetime.datetime.now().strftime("%Y-%m-%d-%H-%M")}.log', level=logging.INFO, format='%(asctime)s [%(levelname)s] - %(message)s')
 
     # 加载数据集
-    train_loader, test_loader = create_dataloaders()
+    train_loader, test_loader = create_dataloaders(batch_size=512)
 
     # 初始化模型
     model = TrafficSignNet(num_classes=43).to(device)

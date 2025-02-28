@@ -88,7 +88,7 @@ def create_dataloaders(data_dir="data/GTSRB", batch_size=64):
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
-        num_workers=4,
+        num_workers=10,
         pin_memory=True
     )
     
@@ -96,7 +96,7 @@ def create_dataloaders(data_dir="data/GTSRB", batch_size=64):
         test_dataset,
         batch_size=batch_size,
         shuffle=False,
-        num_workers=4,
+        num_workers=10,
         pin_memory=True
     )
     

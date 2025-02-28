@@ -148,5 +148,5 @@ if __name__ == '__main__':
     ax[1].set_title(f'Mask (Label 1)\nL1={results[1]["l1_norm"]:.2f}')
     ax[2].imshow(results[5]['mask'], cmap='gray')
     ax[2].set_title(f'Mask (Label 5)\nL1={results[5]["l1_norm"]:.2f}')
-    plt.savefig('mask_diff.png')
+    plt.savefig('GTSRB/mask_diff.png')
     plt.show()
