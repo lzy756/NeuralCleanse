@@ -48,7 +48,7 @@ def create_dataloaders(data_dir="data/GTSRB", batch_size=64):
     train_dataset = inj_Dataset(
         root_dir=data_dir,
         csv_file="Train.csv",
-        transform=None,  # 原始数据用于传递映射
+        transform=train_transform,  # 原始数据用于传递映射
         use_roi=True
     )
     
@@ -59,9 +59,6 @@ def create_dataloaders(data_dir="data/GTSRB", batch_size=64):
         transform=test_transform,
         use_roi=True
     )
-    
-    # 为训练集应用增强变换（需要放在获取映射之后）
-    train_dataset.transform = train_transform
     
     # 创建数据加载器
     train_loader = DataLoader(
