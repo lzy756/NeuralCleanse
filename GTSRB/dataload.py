@@ -20,32 +20,51 @@ class GTSRB_CSVDataset(Dataset):
         self.df = pd.read_csv(self.root / csv_file, delimiter=',')
         self.transform = transform
         self.use_roi = use_roi
-        
+        self.images = []
+        self.labels = []
+
+        for idx in range(len(self.df)):
+            entry = self.df.iloc[idx]
+            img_path = self.root / entry['Path']
+            image = Image.open(img_path).convert('RGB')
+            if self.use_roi:
+                x1, y1 = entry['Roi.X1'], entry['Roi.Y1']
+                x2, y2 = entry['Roi.X2'], entry['Roi.Y2']
+                image = image.crop((x1, y1, x2, y2))
+            label = entry['ClassId']
+            if self.transform:
+                image = self.transform(image)
+
+            self.images.append(image)
+            self.labels.append(label)
+            
 
     def __len__(self):
         return len(self.df)
 
     def __getitem__(self, idx):
-        entry = self.df.iloc[idx]
+        return self.images[idx], self.labels[idx]
+    # def __getitem__(self, idx):
+    #     entry = self.df.iloc[idx]
         
-        # 构建绝对路径（适应官方目录结构）
-        img_path = self.root / entry['Path']
-        image = Image.open(img_path).convert('RGB')
+    #     # 构建绝对路径（适应官方目录结构）
+    #     img_path = self.root / entry['Path']
+    #     image = Image.open(img_path).convert('RGB')
         
-        # 应用ROI裁剪 (X/Y的顺序需要特别注意)
-        if self.use_roi:
-            x1, y1 = entry['Roi.X1'], entry['Roi.Y1']
-            x2, y2 = entry['Roi.X2'], entry['Roi.Y2']
-            image = image.crop((x1, y1, x2, y2))
+    #     # 应用ROI裁剪 (X/Y的顺序需要特别注意)
+    #     if self.use_roi:
+    #         x1, y1 = entry['Roi.X1'], entry['Roi.Y1']
+    #         x2, y2 = entry['Roi.X2'], entry['Roi.Y2']
+    #         image = image.crop((x1, y1, x2, y2))
         
-        # 转换为数值标签
-        label = entry['ClassId']
+    #     # 转换为数值标签
+    #     label = entry['ClassId']
         
-        # 应用变换流程
-        if self.transform:
-            image = self.transform(image)
+    #     # 应用变换流程
+    #     if self.transform:
+    #         image = self.transform(image)
             
-        return image, label
+    #     return image, label
 
 # 数据预处理配置
 train_transform = transforms.Compose([
@@ -68,7 +87,7 @@ def create_dataloaders(data_dir="data/GTSRB", batch_size=64):
     train_dataset = GTSRB_CSVDataset(
         root_dir=data_dir,
         csv_file="Train.csv",
-        transform=None,  # 原始数据用于传递映射
+        transform=train_transform,  # 原始数据用于传递映射
         use_roi=True
     )
     
@@ -79,9 +98,6 @@ def create_dataloaders(data_dir="data/GTSRB", batch_size=64):
         transform=test_transform,
         use_roi=True
     )
-    
-    # 为训练集应用增强变换（需要放在获取映射之后）
-    train_dataset.transform = train_transform
     
     # 创建数据加载器
     train_loader = DataLoader(
