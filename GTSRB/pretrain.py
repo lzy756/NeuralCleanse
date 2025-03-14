@@ -11,7 +11,7 @@ import datetime
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 超参数配置
-num_epochs = 20
+num_epochs = 200
 target_class = 0  # 要误导模型预测的目标类别
 trigger_size = 4  # 触发器像素尺寸
 

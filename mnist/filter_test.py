@@ -9,8 +9,8 @@ from sklearn.metrics import confusion_matrix
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 加载逆向工程的触发器和mask
-reverse_mask = torch.load("mask_label0.pth").to(device)
-reverse_delta = torch.load("delta_label0.pth").to(device)
+reverse_mask = torch.load("mnist/mask_label0.pth").to(device)
+reverse_delta = torch.load("mnist/delta_label0.pth").to(device)
 
 # 生成三种输入类型的数据（干净样本 + 对抗样本）
 def generate_inputs(model, test_loader):
@@ -87,7 +87,7 @@ def evaluate_filter(clean_activations, trigger_activations):
 
 # 主流程
 model = BadNetMNIST().to(device)
-model.load_state_dict(torch.load("badnet_mnist.pth", map_location=device))
+model.load_state_dict(torch.load("mnist/badnet_mnist.pth", map_location=device))
 model.eval()
 
 test_subset = torch.utils.data.Subset(testset, indices=range(1000))

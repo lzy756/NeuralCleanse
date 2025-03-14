@@ -12,8 +12,8 @@ plt.rcParams['axes.unicode_minus'] = False   # 解决负号显示问题
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # 加载逆向工程的触发器和mask
-reverse_mask = torch.load("mask_label0.pth").to(device)
-reverse_delta = torch.load("delta_label0.pth").to(device)
+reverse_mask = torch.load("mnist/mask_label0.pth").to(device)
+reverse_delta = torch.load("mnist/delta_label0.pth").to(device)
 
 # 生成三种输入类型的数据（干净样本 + 对抗样本）
 def generate_inputs(model, test_loader):
@@ -171,7 +171,7 @@ def evaluate_filter(clean_activations, trigger_activations):
 
 # 主流程
 model = BadNetMNIST().to(device)
-model.load_state_dict(torch.load("badnet_mnist.pth", map_location=device))
+model.load_state_dict(torch.load("mnist/badnet_mnist.pth", map_location=device))
 model.eval()
 
 test_subset = torch.utils.data.Subset(testset, indices=range(1000))
@@ -204,9 +204,9 @@ keep_counts, success_rates, mainscrates, resuccess_rates = evaluate_neuron_pruni
 
 # 在现有绘图代码前加入以下绘图代码
 plt.figure(figsize=(8, 5))
-plt.plot(keep_counts, mainscrates, linestyle='-', marker='x', color='black', linewidth=1.2, markersize=6)
-plt.plot(keep_counts, success_rates, linestyle='--', marker='x', color='#FF2F17', linewidth=1.2, markersize=6)
-plt.plot(keep_counts, resuccess_rates, linestyle='-.', marker='x', color='#214DA9', linewidth=1.2, markersize=6)
+plt.plot(keep_counts, mainscrates, linestyle='--', marker='x', color='black', linewidth=2, markersize=6)
+plt.plot(keep_counts, success_rates, linestyle='--', marker='x', color='#FF2F17', linewidth=2, markersize=6)
+plt.plot(keep_counts, resuccess_rates, linestyle='--', marker='x', color='#214DA9', linewidth=2, markersize=6)
 plt.legend(["主任务准确率", "攻击成功率", "逆向触发器攻击成功率"], loc="right") 
 plt.xlabel("屏蔽的关键神经元数量")
 plt.ylabel("成功率")

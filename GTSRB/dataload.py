@@ -6,6 +6,7 @@ from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms as transforms
 import numpy as np
 import matplotlib.pyplot as plt
+from torchvision.io import decode_png
 class GTSRB_CSVDataset(Dataset):
     def __init__(self, root_dir, csv_file, transform=None, use_roi=True):
         """
@@ -20,16 +21,18 @@ class GTSRB_CSVDataset(Dataset):
         self.df = pd.read_csv(self.root / csv_file, delimiter=',')
         self.transform = transform
         self.use_roi = use_roi
+        self.img_paths = [self.root / path for path in self.df['Path']]
+        self.rois = self.df[['Roi.X1', 'Roi.Y1', 'Roi.X2', 'Roi.Y2']].values
         self.images = []
         self.labels = []
 
         for idx in range(len(self.df)):
             entry = self.df.iloc[idx]
-            img_path = self.root / entry['Path']
-            image = Image.open(img_path).convert('RGB')
+            img_path = self.img_paths[idx]
+            image_data = decode_png(torch.from_numpy(np.fromfile(img_path, dtype=np.uint8)))
+            image = Image.fromarray(image_data.permute(1, 2, 0).numpy())
             if self.use_roi:
-                x1, y1 = entry['Roi.X1'], entry['Roi.Y1']
-                x2, y2 = entry['Roi.X2'], entry['Roi.Y2']
+                x1, y1, x2, y2 = self.rois[idx]
                 image = image.crop((x1, y1, x2, y2))
             label = entry['ClassId']
             if self.transform:

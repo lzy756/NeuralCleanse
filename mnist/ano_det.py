@@ -4,7 +4,7 @@ import statistics
 
 masks_l1=[]
 for i in range(10):
-    mask = torch.load(f"mask_label{i}.pth")
+    mask = torch.load(f"mnist/mask_label{i}.pth")
     masks_l1.append(mask.sum().item())
 print(masks_l1)
 median = statistics.median(masks_l1)
