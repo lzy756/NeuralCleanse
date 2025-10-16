@@ -1,0 +1,2 @@
+Success Rate: 1.0
+L1 Norm: 7868.2138671875

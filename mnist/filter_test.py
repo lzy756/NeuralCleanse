@@ -7,6 +7,8 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+plt.rcParams['font.sans-serif'] = ['SimHei', 'Arial Unicode MS', 'Microsoft YaHei', 'WenQuanYi Micro Hei']  # 优先使用的中文字体
+plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 
 # 加载逆向工程的触发器和mask
 reverse_mask = torch.load("mnist/mask_label0.pth").to(device)
