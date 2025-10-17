@@ -3,6 +3,13 @@ import os
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
+ 
+# 统一字体大小常量（修改此值即可全局生效）
+FONT_SIZE = 16
+
+# 全局应用字体大小
+plt.rcParams["font.size"] = FONT_SIZE
+
 
 data_dir = "data/defect_supervised/glass-insulator"
 transform = transforms.Compose([
@@ -41,11 +48,13 @@ for epoch in epochs:
 plt.figure(figsize=(12, 6))
 plt.plot(epochs, l1_norms_label0, 'r-o', label=f'Label 0: {class_names[0]}')
 plt.plot(epochs, l1_norms_label1, 'b-o', label=f'Label 1: {class_names[1]}')
-plt.xlabel('Epochs')
-plt.ylabel('Mask L1 Norm')
-plt.title('Mask L1 Trend Over Epochs')
+plt.xlabel('Epochs', fontsize=FONT_SIZE)
+plt.ylabel('Mask L1 Norm', fontsize=FONT_SIZE)
+plt.title('Mask L1 Trend Over Epochs', fontsize=FONT_SIZE)
 plt.grid(True, linestyle='--', alpha=0.7)
-plt.legend()
+plt.xticks(fontsize=FONT_SIZE)
+plt.yticks(fontsize=FONT_SIZE)
+plt.legend(fontsize=FONT_SIZE)
 plt.tight_layout()
 
 # 保存L1范数趋势图

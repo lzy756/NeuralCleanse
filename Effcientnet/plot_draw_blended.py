@@ -8,7 +8,7 @@ from PIL import Image
 
 # ========== 配置区域 ==========
 KEY_PATTERN_PATH = '/home/lzy/IOE_exp/NeuralCleanse/Effcientnet/pics/file.jpg'
-BLEND_ALPHA = 0.1  # 混合比例，推荐值: 0.05-0.2，值越小越隐蔽
+BLEND_ALPHA = 0.2  # 混合比例，推荐值: 0.05-0.2，值越小越隐蔽
 # ==============================
 
 data_dir = "data/defect_supervised/glass-insulator"
@@ -114,7 +114,7 @@ def plot_trigger_comparison():
     # 1. Clean Sample
     clean_img = denormalize_tensor(clean_sample.clone())
     axes[0].imshow(clean_img)
-    axes[0].set_title('Clean Sample', fontsize=56)
+    axes[0].set_title('Clean Sample', fontsize=28)
     axes[0].axis('off')
     
     # 2. Blended Injection Trigger
@@ -138,13 +138,13 @@ def plot_trigger_comparison():
         # 显示
         blended_img_np = np.array(blended_img_pil) / 255.0
         axes[1].imshow(blended_img_np)
-        axes[1].set_title(f'Blended Injection (α={BLEND_ALPHA})', fontsize=56)
+        axes[1].set_title(f'Blended Injection (α={BLEND_ALPHA})', fontsize=28)
         
     except Exception as e:
         print(f"Error in Blended Injection: {e}")
         axes[1].text(0.5, 0.5, f'Blended Injection\n(Error: {str(e)})', 
                     ha='center', va='center', transform=axes[1].transAxes, fontsize=12)
-        axes[1].set_title('Blended Injection', fontsize=56)
+        axes[1].set_title('Blended Injection', fontsize=28)
     
     axes[1].axis('off')
     
@@ -158,15 +158,16 @@ def plot_trigger_comparison():
         original_img_np = np.array(original_trigger_pil) / 255.0
         
         axes[2].imshow(original_img_np)
-        axes[2].set_title('Original Trigger (White Square)', fontsize=56)
+        axes[2].set_title('Original Trigger (White Square)', fontsize=28)
     except Exception as e:
         axes[2].text(0.5, 0.5, 'Original Trigger\n(Error)', 
                     ha='center', va='center', transform=axes[2].transAxes, fontsize=12)
-        axes[2].set_title('Original Trigger', fontsize=56)
+        axes[2].set_title('Original Trigger', fontsize=28)
     
     axes[2].axis('off')
     
-    plt.tight_layout()
+    # 增大子图之间的间距（默认 w_pad/h_pad≈0.5，pad≈1.08，这里放大约4倍）
+    plt.tight_layout(pad=4.32, w_pad=2.0, h_pad=2.0)
     
     # 确保results目录存在
     os.makedirs('results', exist_ok=True)
@@ -218,7 +219,7 @@ def plot_multiple_trigger_comparison(num_samples=3):
         clean_img = denormalize_tensor(clean_sample.clone())
         axes[i, 0].imshow(clean_img)
         if i == 0:
-            axes[i, 0].set_title('Clean Sample', fontsize=56)
+            axes[i, 0].set_title('Clean Sample', fontsize=28)
         axes[i, 0].axis('off')
         
         # Blended Injection trigger
@@ -238,7 +239,7 @@ def plot_multiple_trigger_comparison(num_samples=3):
                            transform=axes[i, 1].transAxes)
         
         if i == 0:
-            axes[i, 1].set_title(f'Blended Injection (α={BLEND_ALPHA})', fontsize=56)
+            axes[i, 1].set_title(f'Blended Injection (α={BLEND_ALPHA})', fontsize=28)
         axes[i, 1].axis('off')
         
         # Original trigger (白色矩形)
@@ -248,10 +249,11 @@ def plot_multiple_trigger_comparison(num_samples=3):
         axes[i, 2].imshow(original_img_np)
         
         if i == 0:
-            axes[i, 2].set_title('Original Trigger', fontsize=56)
+            axes[i, 2].set_title('Original Trigger', fontsize=28)
         axes[i, 2].axis('off')
     
-    plt.tight_layout()
+    # 增大子图之间的间距（默认 w_pad/h_pad≈0.5，pad≈1.08，这里放大约4倍）
+    plt.tight_layout(w_pad=4.0, h_pad=4.0)
     os.makedirs('results', exist_ok=True)
     plt.savefig('results/multiple_trigger_comparison_blend.png', dpi=300, bbox_inches='tight')
     plt.close()
@@ -259,5 +261,5 @@ def plot_multiple_trigger_comparison(num_samples=3):
 
 # 调用函数
 if __name__ == "__main__":
-    plot_trigger_comparison()
+    # plot_trigger_comparison()
     plot_multiple_trigger_comparison(num_samples=4)
