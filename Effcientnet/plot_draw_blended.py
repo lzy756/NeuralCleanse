@@ -8,7 +8,7 @@ from PIL import Image
 
 # ========== 配置区域 ==========
 KEY_PATTERN_PATH = '/home/lzy/IOE_exp/NeuralCleanse/Effcientnet/pics/file.jpg'
-BLEND_ALPHA = 0.2  # 混合比例，推荐值: 0.05-0.2，值越小越隐蔽
+BLEND_ALPHA = 0.3  # 混合比例，推荐值: 0.05-0.2，值越小越隐蔽
 # ==============================
 
 data_dir = "data/defect_supervised/glass-insulator"
@@ -167,7 +167,7 @@ def plot_trigger_comparison():
     axes[2].axis('off')
     
     # 增大子图之间的间距（默认 w_pad/h_pad≈0.5，pad≈1.08，这里放大约4倍）
-    plt.tight_layout(pad=4.32, w_pad=2.0, h_pad=2.0)
+    plt.tight_layout(pad=4.32, w_pad=3.0, h_pad=3.0)
     
     # 确保results目录存在
     os.makedirs('results', exist_ok=True)
@@ -253,7 +253,7 @@ def plot_multiple_trigger_comparison(num_samples=3):
         axes[i, 2].axis('off')
     
     # 增大子图之间的间距（默认 w_pad/h_pad≈0.5，pad≈1.08，这里放大约4倍）
-    plt.tight_layout(w_pad=4.0, h_pad=4.0)
+    plt.tight_layout(w_pad=5.0, h_pad=5.0)
     os.makedirs('results', exist_ok=True)
     plt.savefig('results/multiple_trigger_comparison_blend.png', dpi=300, bbox_inches='tight')
     plt.close()
