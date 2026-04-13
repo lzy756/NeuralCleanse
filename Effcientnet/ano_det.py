@@ -1,19 +1,24 @@
 import torch
 import math
 import statistics
-import os
+from pathlib import Path
 
 print("==== 对 Effecientnet 的 Neural Cleanse 结果进行异常检测 ====")
 
 # 确定类别数
-results_dir = "results"
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+preferred_results_dir = PROJECT_ROOT / "results"
+legacy_results_dir = SCRIPT_DIR / "results"
 num_classes = 2  # 按照您的代码中的配置设置为2
 
 # 收集每个标签的 mask L1 范数
 masks_l1 = []
 for i in range(num_classes):
-    mask_path = f"Effcientnet/{results_dir}/mask_label{i}.pth"
-    if os.path.exists(mask_path):
+    preferred_mask_path = preferred_results_dir / f"mask_label{i}.pth"
+    legacy_mask_path = legacy_results_dir / f"mask_label{i}.pth"
+    mask_path = preferred_mask_path if preferred_mask_path.exists() else legacy_mask_path
+    if mask_path.exists():
         mask = torch.load(mask_path)
         l1_norm = mask.sum().item()
         masks_l1.append(l1_norm)

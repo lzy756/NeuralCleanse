@@ -1,6 +1,7 @@
 import os
 import time
 import copy
+from pathlib import Path
 import torch
 import torch.nn as nn
 import numpy as np
@@ -11,15 +12,21 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import random
 from torchvision.models import efficientnet_v2_s,EfficientNet_V2_S_Weights
+from runtime import select_device
 # ----------------------------
 # 1. 配置
 # ----------------------------
-data_dir = "data/defect_supervised/glass-insulator"
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+data_dir = PROJECT_ROOT / "data/defect_supervised/glass-insulator"
+model_output_path = SCRIPT_DIR / "glass_insulator_efficientnetv2_backdoored.pth"
+backdoor_preview_path = SCRIPT_DIR / "backdoor_samples.png"
+local_imagenet_weights_path = SCRIPT_DIR / "weights/efficientnet_v2_s-dd5fe13b.pth"
 num_classes = 2
 batch_size = 16
 num_epochs = 20
 learning_rate = 1e-3
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = select_device()
 print(f"Using device: {device}")
 
 # ----------------------------
@@ -104,7 +111,7 @@ class BackdoorDataset(Dataset):
         return img, label
 
 # 原始数据集
-original_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
+original_datasets = {x: datasets.ImageFolder(str(data_dir / x),
                                              data_transforms[x])
                     for x in ['train', 'val']}
 
@@ -123,10 +130,39 @@ dataloaders = {x: DataLoader(image_datasets[x],
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = original_datasets['train'].classes
 
+def load_imagenet_pretrained_weights():
+    cache_weights_path = Path(torch.hub.get_dir()) / "checkpoints/efficientnet_v2_s-dd5fe13b.pth"
+    allow_online_download = os.environ.get("ALLOW_MODEL_DOWNLOAD") == "1"
+
+    model = models.efficientnet_v2_s(weights=None)
+
+    if local_imagenet_weights_path.exists():
+        print(f"Loading ImageNet pretrained weights from local file: {local_imagenet_weights_path}")
+        state_dict = torch.load(local_imagenet_weights_path, map_location="cpu")
+        model.load_state_dict(state_dict)
+        return model
+
+    if cache_weights_path.exists():
+        print(f"Loading ImageNet pretrained weights from local cache: {cache_weights_path}")
+        state_dict = torch.load(cache_weights_path, map_location="cpu")
+        model.load_state_dict(state_dict)
+        return model
+
+    if allow_online_download:
+        print("Local pretrained weights not found; downloading from torchvision source.")
+        return models.efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.IMAGENET1K_V1)
+
+    raise FileNotFoundError(
+        "EfficientNetV2-S ImageNet 预训练权重未找到。"
+        f"请确认本地文件存在: {local_imagenet_weights_path}。"
+        "如需允许在线下载，请设置环境变量 ALLOW_MODEL_DOWNLOAD=1。"
+    )
+
+
 # ----------------------------
 # 3. 模型定义
 # ----------------------------
-model = models.efficientnet_v2_s(weights=EfficientNet_V2_S_Weights.IMAGENET1K_V1)
+model = load_imagenet_pretrained_weights()
 # 冻结前面大部分层（可选）
 for param in model.parameters():
     param.requires_grad = True  # 如果想 fine-tune 全部层，设为 True
@@ -298,9 +334,9 @@ def show_backdoor_samples():
         plt.axis('off')
     
     plt.tight_layout()
-    plt.savefig('backdoor_samples.png')
+    plt.savefig(backdoor_preview_path)
     # plt.show()
-    print("后门样本图片已保存为 'backdoor_samples.png'")
+    print(f"后门样本图片已保存为 '{backdoor_preview_path}'")
 
 # ----------------------------
 # 5. 执行训练
@@ -310,5 +346,5 @@ if __name__ == "__main__":
     
     best_model = train_model(model, criterion, optimizer, scheduler, num_epochs=num_epochs)
     # 保存模型
-    torch.save(best_model.state_dict(), "glass_insulator_efficientnetv2_backdoored.pth")
-    print("Model saved to glass_insulator_efficientnetv2_backdoored.pth")
+    torch.save(best_model.state_dict(), model_output_path)
+    print(f"Model saved to {model_output_path}")

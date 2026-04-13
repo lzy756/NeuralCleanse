@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-import os
+from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -7,18 +7,21 @@ import numpy as np
 from PIL import Image
 
 # ========== 配置区域 ==========
-KEY_PATTERN_PATH = '/home/lzy/IOE_exp/NeuralCleanse/Effcientnet/pics/file.jpg'
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+KEY_PATTERN_PATH = SCRIPT_DIR / 'pics/file.jpg'
 BLEND_ALPHA = 0.3  # 混合比例，推荐值: 0.05-0.2，值越小越隐蔽
 # ==============================
 
-data_dir = "data/defect_supervised/glass-insulator"
+data_dir = PROJECT_ROOT / "data/defect_supervised/glass-insulator"
+results_dir = PROJECT_ROOT / "results"
 transform = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
-clean_dataset = datasets.ImageFolder(os.path.join(data_dir, 'val'), transform)
+clean_dataset = datasets.ImageFolder(str(data_dir / 'val'), transform)
 class_names = clean_dataset.classes
 
 
@@ -114,13 +117,13 @@ def plot_trigger_comparison():
     # 1. Clean Sample
     clean_img = denormalize_tensor(clean_sample.clone())
     axes[0].imshow(clean_img)
-    axes[0].set_title('Clean Sample', fontsize=28)
+    axes[0].set_title('Clean Sample', fontsize=22)
     axes[0].axis('off')
     
     # 2. Blended Injection Trigger
     try:
         # 加载图案密钥
-        if os.path.exists(KEY_PATTERN_PATH):
+        if KEY_PATTERN_PATH.exists():
             key_pattern = load_key_pattern(KEY_PATTERN_PATH, target_size=(224, 224))
         else:
             # 如果用户未提供路径，提示用户
@@ -138,13 +141,13 @@ def plot_trigger_comparison():
         # 显示
         blended_img_np = np.array(blended_img_pil) / 255.0
         axes[1].imshow(blended_img_np)
-        axes[1].set_title(f'Blended Injection (α={BLEND_ALPHA})', fontsize=28)
+        axes[1].set_title(f'Blended Injection (α={BLEND_ALPHA})', fontsize=22)
         
     except Exception as e:
         print(f"Error in Blended Injection: {e}")
         axes[1].text(0.5, 0.5, f'Blended Injection\n(Error: {str(e)})', 
                     ha='center', va='center', transform=axes[1].transAxes, fontsize=12)
-        axes[1].set_title('Blended Injection', fontsize=28)
+        axes[1].set_title('Blended Injection', fontsize=22)
     
     axes[1].axis('off')
     
@@ -158,11 +161,11 @@ def plot_trigger_comparison():
         original_img_np = np.array(original_trigger_pil) / 255.0
         
         axes[2].imshow(original_img_np)
-        axes[2].set_title('Original Trigger (White Square)', fontsize=28)
+        axes[2].set_title('Original Trigger (White Square)', fontsize=22)
     except Exception as e:
         axes[2].text(0.5, 0.5, 'Original Trigger\n(Error)', 
                     ha='center', va='center', transform=axes[2].transAxes, fontsize=12)
-        axes[2].set_title('Original Trigger', fontsize=28)
+        axes[2].set_title('Original Trigger', fontsize=22)
     
     axes[2].axis('off')
     
@@ -170,8 +173,8 @@ def plot_trigger_comparison():
     plt.tight_layout(pad=4.32, w_pad=3.0, h_pad=3.0)
     
     # 确保results目录存在
-    os.makedirs('results', exist_ok=True)
-    plt.savefig('results/trigger_comparison.png', dpi=300, bbox_inches='tight')
+    results_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(results_dir / 'trigger_comparison.png', dpi=300, bbox_inches='tight')
     plt.close()
     print("Trigger comparison saved to results/trigger_comparison.png")
 
@@ -204,7 +207,7 @@ def plot_multiple_trigger_comparison(num_samples=3):
     
     # 预先加载图案密钥（在循环外加载一次，提高效率）
     try:
-        if os.path.exists(KEY_PATTERN_PATH):
+        if KEY_PATTERN_PATH.exists():
             key_pattern = load_key_pattern(KEY_PATTERN_PATH, target_size=(224, 224))
         else:
             key_pattern = Image.new('RGB', (224, 224), color=(100, 200, 255))
@@ -219,7 +222,7 @@ def plot_multiple_trigger_comparison(num_samples=3):
         clean_img = denormalize_tensor(clean_sample.clone())
         axes[i, 0].imshow(clean_img)
         if i == 0:
-            axes[i, 0].set_title('Clean Sample', fontsize=28)
+            axes[i, 0].set_title('Clean Sample', fontsize=22)
         axes[i, 0].axis('off')
         
         # Blended Injection trigger
@@ -239,7 +242,7 @@ def plot_multiple_trigger_comparison(num_samples=3):
                            transform=axes[i, 1].transAxes)
         
         if i == 0:
-            axes[i, 1].set_title(f'Blended Injection (α={BLEND_ALPHA})', fontsize=28)
+            axes[i, 1].set_title(f'Blended Injection (α={BLEND_ALPHA})', fontsize=22)
         axes[i, 1].axis('off')
         
         # Original trigger (白色矩形)
@@ -249,17 +252,17 @@ def plot_multiple_trigger_comparison(num_samples=3):
         axes[i, 2].imshow(original_img_np)
         
         if i == 0:
-            axes[i, 2].set_title('Original Trigger', fontsize=28)
+            axes[i, 2].set_title('Original Trigger', fontsize=22)
         axes[i, 2].axis('off')
     
     # 增大子图之间的间距（默认 w_pad/h_pad≈0.5，pad≈1.08，这里放大约4倍）
     plt.tight_layout(w_pad=5.0, h_pad=5.0)
-    os.makedirs('results', exist_ok=True)
-    plt.savefig('results/multiple_trigger_comparison_blend.png', dpi=300, bbox_inches='tight')
+    results_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(results_dir / 'multiple_trigger_comparison_blend.png', dpi=300, bbox_inches='tight')
     plt.close()
     print("Multiple trigger comparison saved to results/multiple_trigger_comparison_blend.png")
 
 # 调用函数
 if __name__ == "__main__":
     # plot_trigger_comparison()
-    plot_multiple_trigger_comparison(num_samples=4)
+    plot_multiple_trigger_comparison(num_samples=3)

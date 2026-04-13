@@ -1,4 +1,5 @@
 import matplotlib.pyplot as plt
+from pathlib import Path
 import numpy as np
 
 # === 字体大小设置 ==========================================================
@@ -8,9 +9,9 @@ FONT_SIZE = 18
 models   = ['EffNetV2-S', 'EffNetV2-M', 'EffNetV2-L']
 methods  = ['Ours', 'BackdoorIndicator', 'CrowdGuard']
 overhead = np.array([
-    [3.38,   5.27,   5.27],    # ours
+    [1.15,   1.15,   1.15],    # ours: mask + delta, both are (3,224,224) FP32 tensors
     [81.86, 206.53, 452.10],   # BackdoorIndicator
-    [7.89,   7.89,   7.89]     # CrowdGuard
+    [81.86, 206.53, 452.10]    # CrowdGuard: lower bound under one encrypted model copy
 ])
 
 # === 画布参数 ===============================================================
@@ -44,5 +45,8 @@ ax.grid(True, axis='y', linestyle='--', linewidth=0.6, alpha=0.7)
 
 # 适当增加下边距防止刻度被截
 plt.tight_layout()
-plt.savefig('results/communication_overhead_logscale_cmfl.png', dpi=300)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+results_dir = PROJECT_ROOT / "results"
+results_dir.mkdir(parents=True, exist_ok=True)
+plt.savefig(results_dir / 'communication_overhead_logscale_cmfl.png', dpi=300)
 plt.show()

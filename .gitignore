@@ -52,3 +52,22 @@ trigger_results.json
 # 压缩文件
 *.zip
 *.tar.gz
+
+# 实验结果目录：忽略数据产物，但保留结果图
+results/**
+!results/**/
+!results/**/*.png
+!results/**/*.jpg
+!results/**/*.jpeg
+!results/**/*.svg
+!results/**/*.pdf
+
+Effcientnet/results/**
+!Effcientnet/results/**/
+!Effcientnet/results/**/*.png
+!Effcientnet/results/**/*.jpg
+!Effcientnet/results/**/*.jpeg
+!Effcientnet/results/**/*.svg
+!Effcientnet/results/**/*.pdf
+# 文档文件
+*.md

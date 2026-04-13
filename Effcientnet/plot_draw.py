@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-import os
+from pathlib import Path
 import torch
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
@@ -12,14 +12,18 @@ FONT_SIZE_TEXT = 20
 plt.rcParams["font.size"] = FONT_SIZE
 
 
-data_dir = "data/defect_supervised/glass-insulator"
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+data_dir = PROJECT_ROOT / "data/defect_supervised/glass-insulator"
+results_dir = PROJECT_ROOT / "results"
+mask_evolution_dir = results_dir / "mask_evolution"
 transform = transforms.Compose([
     transforms.Resize(256),
     transforms.CenterCrop(224),
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
-clean_dataset = datasets.ImageFolder(os.path.join(data_dir, 'val'), transform)
+clean_dataset = datasets.ImageFolder(str(data_dir / 'val'), transform)
 class_names = clean_dataset.classes
 
 
@@ -30,16 +34,16 @@ l1_norms_label1 = []
 # 收集每个epoch的L1范数数据
 for epoch in epochs:
     # 标签0的mask L1范数
-    mask_path = f'results/mask_evolution/mask_label0_epoch{epoch}.pth'
-    if os.path.exists(mask_path):
+    mask_path = mask_evolution_dir / f'mask_label0_epoch{epoch}.pth'
+    if mask_path.exists():
         mask = torch.load(mask_path)
         l1_norms_label0.append(mask.sum().item())
     else:
         l1_norms_label0.append(None)
         
     # 标签1的mask L1范数
-    mask_path = f'results/mask_evolution/mask_label1_epoch{epoch}.pth'
-    if os.path.exists(mask_path):
+    mask_path = mask_evolution_dir / f'mask_label1_epoch{epoch}.pth'
+    if mask_path.exists():
         mask = torch.load(mask_path)
         l1_norms_label1.append(mask.sum().item())
     else:
@@ -59,5 +63,6 @@ plt.legend(fontsize=FONT_SIZE_TEXT)
 plt.tight_layout()
 
 # 保存L1范数趋势图
-plt.savefig('results/mask_l1_norm_trend.png', dpi=300, bbox_inches='tight')
+results_dir.mkdir(parents=True, exist_ok=True)
+plt.savefig(results_dir / 'mask_l1_norm_trend.png', dpi=300, bbox_inches='tight')
 plt.close()

@@ -1,16 +1,22 @@
-import os
+from pathlib import Path
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
-from torchvision import datasets, transforms, models
-from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
+from torchvision import datasets, transforms
+from torchvision.models import efficientnet_v2_s
 from sklearn.metrics import confusion_matrix
+from runtime import select_device
 
 # 配置
-data_dir = "data/defect_supervised/glass-insulator"
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+data_dir = PROJECT_ROOT / "data/defect_supervised/glass-insulator"
+model_path = SCRIPT_DIR / "glass_insulator_efficientnetv2_backdoored.pth"
+preferred_results_dir = PROJECT_ROOT / "results"
+legacy_results_dir = SCRIPT_DIR / "results"
 batch_size = 16
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = select_device()
 
 # 数据转换（与训练/逆向工程相同）
 data_transform = transforms.Compose([
@@ -22,7 +28,7 @@ data_transform = transforms.Compose([
 ])
 
 # 加载验证集
-clean_dataset = datasets.ImageFolder(os.path.join(data_dir, 'val'), data_transform)
+clean_dataset = datasets.ImageFolder(str(data_dir / 'val'), data_transform)
 clean_loader = DataLoader(clean_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 class_names = clean_dataset.classes
 
@@ -32,7 +38,7 @@ model.classifier = torch.nn.Sequential(
     torch.nn.Dropout(p=0.2, inplace=True),
     torch.nn.Linear(in_features=1280, out_features=len(class_names))
 )
-model.load_state_dict(torch.load("Effcientnet/glass_insulator_efficientnetv2_backdoored.pth", map_location=device))
+model.load_state_dict(torch.load(model_path, map_location=device))
 model.to(device)
 model.eval()
 
@@ -45,8 +51,9 @@ def hook(module, input, output):
 model.classifier[1].register_forward_hook(hook)
 
 # 加载逆向工程的触发器和mask（选择目标标签1）
-reverse_mask = torch.load("Effcientnet/results/mask_label1.pth").to(device)
-reverse_delta = torch.load("Effcientnet/results/delta_label1.pth").to(device)
+results_dir = preferred_results_dir if (preferred_results_dir / "mask_label1.pth").exists() else legacy_results_dir
+reverse_mask = torch.load(results_dir / "mask_label1.pth").to(device)
+reverse_delta = torch.load(results_dir / "delta_label1.pth").to(device)
 target_label = 1
 
 # 生成三种输入类型的数据：干净、逆向触发、原始触发
@@ -144,7 +151,7 @@ if __name__ == "__main__":
     plt.text(0.11, 0.25, 'FPR=10%', color='gray', fontsize=10, rotation=90)
     plt.grid(True)
     plt.legend()
-    plt.savefig('fpr_fnr_efficientnet.png')
+    plt.savefig(preferred_results_dir / 'fpr_fnr_efficientnet.png')
     plt.show()
 
     # FPR=5%时的FNR

@@ -8,9 +8,10 @@ from sklearn.metrics import confusion_matrix
 import torch.nn as nn
 from torchvision.models import efficientnet_v2_s
 from PIL import Image
+from runtime import select_device
 
 # 设备配置
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = select_device()
 print(f"Using device: {device}")
 
 # 数据目录和参数

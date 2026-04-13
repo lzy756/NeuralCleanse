@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import torch
 import torch.nn as nn
 import numpy as np
@@ -7,14 +8,20 @@ from torchvision import datasets, transforms
 from torchvision.models import efficientnet_v2_s, EfficientNet_V2_S_Weights
 from PIL import Image
 import matplotlib.pyplot as plt
+from runtime import select_device
 
 # ----------------------------
 # 1. 配置
 # ----------------------------
-data_dir = "data/defect_supervised/glass-insulator"
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = SCRIPT_DIR.parent
+data_dir = PROJECT_ROOT / "data/defect_supervised/glass-insulator"
+results_dir = PROJECT_ROOT / "results"
+mask_evolution_dir = results_dir / "mask_evolution"
+model_path = SCRIPT_DIR / "glass_insulator_efficientnetv2_backdoored.pth"
 num_classes = 2
 batch_size = 16
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = select_device()
 print(f"Using device: {device}")
 
 # ----------------------------
@@ -26,7 +33,7 @@ transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 ])
-clean_dataset = datasets.ImageFolder(os.path.join(data_dir, 'val'), transform)
+clean_dataset = datasets.ImageFolder(str(data_dir / 'val'), transform)
 clean_loader = DataLoader(clean_dataset, batch_size=batch_size, shuffle=False, num_workers=4)
 class_names = clean_dataset.classes
 
@@ -38,7 +45,7 @@ model.classifier = nn.Sequential(
     nn.Dropout(p=0.2, inplace=True),
     nn.Linear(in_features=1280, out_features=num_classes)
 )
-model.load_state_dict(torch.load("Effcientnet/glass_insulator_efficientnetv2_backdoored.pth", map_location=device))
+model.load_state_dict(torch.load(model_path, map_location=device))
 model.to(device)
 model.eval()
 
@@ -51,16 +58,21 @@ def reverse_engineer_trigger(
     mask_shape=(3, 224, 224),
     lambda_init=0.01,
     lr=0.01,
-    epochs=200
+    epochs=400
 ):
+    import json
+
     # 初始化可训练参数
     mask = torch.full(mask_shape, 0.1, requires_grad=True, device=device)
     delta = torch.ones(mask_shape, requires_grad=True, device=device)
     optimizer = torch.optim.Adam([mask, delta], lr=lr)
     lambda_val = lambda_init
-    
+
     # 创建临时目录存储训练过程中的mask变化
-    os.makedirs('results/mask_evolution', exist_ok=True)
+    mask_evolution_dir.mkdir(parents=True, exist_ok=True)
+
+    # 每轮记录 L1 范数，用于绘制高分辨率收敛曲线
+    l1_history = []
 
     for epoch in range(1, epochs + 1):
         total_loss, total_success, total_samples = 0.0, 0, 0
@@ -85,30 +97,38 @@ def reverse_engineer_trigger(
             total_samples += imgs.size(0)
 
         acc = total_success / total_samples
+        mask_sig = torch.sigmoid(mask)
+        l1_value = mask_sig.sum().item()
+
+        # 每轮都记录 L1 范数
+        l1_history.append({"epoch": epoch, "l1_norm": l1_value, "acc": acc})
+
         # 动态调整正则权重
         lambda_val *= 0.7 if acc < 0.95 else 1.1
-        
-        # 每10个epoch保存一次mask的变化
-        if epoch % 10 == 0 or epoch == epochs:
-            # 保存当前mask为图片
-            mask_sig = torch.sigmoid(mask)
+
+        # 关键节点保存完整 mask（用于热力图可视化等）
+        if epoch % 50 == 0 or epoch == epochs:
             plt.figure(figsize=(6, 6))
-            mask_mean = mask_sig.detach().cpu().mean(dim=0)  # 通道平均
+            mask_mean = mask_sig.detach().cpu().mean(dim=0)
             plt.imshow(mask_mean, cmap='hot')
             plt.colorbar()
-            plt.title(f'Label {target_label} - Epoch {epoch} - Mask L1: {mask_sig.sum().item():.1f}')
+            plt.title(f'Label {target_label} - Epoch {epoch} - Mask L1: {l1_value:.1f}')
             plt.axis('off')
             plt.tight_layout()
-            plt.savefig(f'results/mask_evolution/trigger_label{target_label}_epoch{epoch}.png', 
+            plt.savefig(mask_evolution_dir / f'trigger_label{target_label}_epoch{epoch}.png',
                       dpi=200, bbox_inches='tight')
             plt.close()
-            
-            # 保存当前mask为pth文件
-            torch.save(mask_sig.detach().cpu(), f'results/mask_evolution/mask_label{target_label}_epoch{epoch}.pth')
+            torch.save(mask_sig.detach().cpu(), mask_evolution_dir / f'mask_label{target_label}_epoch{epoch}.pth')
 
         if epoch % 20 == 0 or epoch == epochs:
             print(f"Epoch {epoch}/{epochs} | Loss: {total_loss/total_samples:.4f} | "
-                  f"Acc: {acc:.4f} | Lambda: {lambda_val:.6f} | Mask L1: {mask_sig.sum().item():.4f}")
+                  f"Acc: {acc:.4f} | Lambda: {lambda_val:.6f} | Mask L1: {l1_value:.4f}")
+
+    # 保存每轮 L1 范数汇总文件
+    l1_history_path = mask_evolution_dir / f'l1_history_label{target_label}.json'
+    with open(l1_history_path, 'w') as f:
+        json.dump(l1_history, f)
+    print(f"L1 history saved to {l1_history_path}")
 
     mask_final = torch.sigmoid(mask).detach().cpu()
     delta_final = delta.detach().cpu()
@@ -175,8 +195,8 @@ def visualize_and_save(mask: torch.Tensor, delta: torch.Tensor, label: int):
     plt.tight_layout()
     
     # 保存高质量图像
-    os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/trigger_analysis_label{label}.png', 
+    results_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(results_dir / f'trigger_analysis_label{label}.png',
                dpi=300, bbox_inches='tight')
     plt.close()
 
@@ -237,8 +257,8 @@ def create_attack_demo(mask: torch.Tensor, delta: torch.Tensor, target_label: in
     # plt.suptitle(f"后门攻击演示: {success_text}", fontsize=16)
     
     # 保存高质量图像
-    os.makedirs('results', exist_ok=True)
-    plt.savefig(f'results/attack_demo_label{target_label}.png', 
+    results_dir.mkdir(parents=True, exist_ok=True)
+    plt.savefig(results_dir / f'attack_demo_label{target_label}.png',
                dpi=300, bbox_inches='tight')
     plt.close()
     
@@ -248,14 +268,14 @@ def create_attack_demo(mask: torch.Tensor, delta: torch.Tensor, target_label: in
 # 6. 主流程
 # ----------------------------
 if __name__ == '__main__':
-    os.makedirs('results', exist_ok=True)
-    os.makedirs('results/mask_evolution', exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    mask_evolution_dir.mkdir(parents=True, exist_ok=True)
     results = {}
     for label in range(num_classes):
         print(f"\n--- Reverse engineering for label {label} ---")
         mask, delta, acc = reverse_engineer_trigger(label, clean_loader)
-        torch.save(mask, f'results/mask_label{label}.pth')
-        torch.save(delta, f'results/delta_label{label}.pth')
+        torch.save(mask, results_dir / f'mask_label{label}.pth')
+        torch.save(delta, results_dir / f'delta_label{label}.pth')
         visualize_and_save(mask, delta, label)
         
         # 创建后门攻击演示
@@ -267,41 +287,28 @@ if __name__ == '__main__':
 
     print("\nResults:", results)
     
-    # 创建mask L1范数的变化趋势线图
-    print("\nCreating mask L1 norm trend plot...")
-    epochs = list(range(10, 201, 10))  # 10到200，步长为10
-    l1_norms_label0 = []
-    l1_norms_label1 = []
-    
-    # 收集每个epoch的L1范数数据
-    for epoch in epochs:
-        # 标签0的mask L1范数
-        mask_path = f'results/mask_evolution/mask_label0_epoch{epoch}.pth'
-        if os.path.exists(mask_path):
-            mask = torch.load(mask_path)
-            l1_norms_label0.append(mask.sum().item())
-        else:
-            l1_norms_label0.append(None)
-            
-        # 标签1的mask L1范数
-        mask_path = f'results/mask_evolution/mask_label1_epoch{epoch}.pth'
-        if os.path.exists(mask_path):
-            mask = torch.load(mask_path)
-            l1_norms_label1.append(mask.sum().item())
-        else:
-            l1_norms_label1.append(None)
-    
-    # 绘制L1范数趋势图
-    plt.figure(figsize=(12, 6))
-    plt.plot(epochs, l1_norms_label0, 'r-o', label=f'Label 0: {class_names[0]}')
-    plt.plot(epochs, l1_norms_label1, 'b-o', label=f'Label 1: {class_names[1]}')
-    plt.xlabel('Epochs')
-    plt.ylabel('Mask L1 Norm')
-    plt.title('Mask L1 Trend Over Epochs')
-    plt.grid(True, linestyle='--', alpha=0.7)
-    plt.legend()
-    plt.tight_layout()
-    
-    # 保存L1范数趋势图
-    plt.savefig('results/mask_l1_norm_trend.png', dpi=300, bbox_inches='tight')
-    plt.close()
+    # 从 JSON 汇总文件绘制高分辨率 L1 范数趋势图
+    import json
+    print("\nCreating mask L1 norm trend plot from JSON history...")
+
+    l1_data = {}
+    for label in range(num_classes):
+        history_path = mask_evolution_dir / f'l1_history_label{label}.json'
+        if history_path.exists():
+            with open(history_path, 'r') as f:
+                l1_data[label] = json.load(f)
+
+    if l1_data:
+        plt.figure(figsize=(12, 6))
+        for label, history in l1_data.items():
+            epochs_list = [h['epoch'] for h in history]
+            l1_list = [h['l1_norm'] for h in history]
+            plt.plot(epochs_list, l1_list, label=f'Label {label}: {class_names[label]}')
+        plt.xlabel('Epochs')
+        plt.ylabel('Mask L1 Norm')
+        plt.title('Mask L1 Trend Over Epochs')
+        plt.grid(True, linestyle='--', alpha=0.7)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(results_dir / 'mask_l1_norm_trend.png', dpi=300, bbox_inches='tight')
+        plt.close()

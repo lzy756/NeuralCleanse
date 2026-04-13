@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.ticker import FormatStrFormatter
 from PIL import Image
+from runtime import select_device
 
 # 统一字体大小常量
 FONT_SIZE = 22
@@ -172,7 +173,7 @@ def main():
     weights_path = "Effcientnet/glass_insulator_efficientnetv2_backdoored.pth"
     results_dir = "results"
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = select_device()
     print(f"Using device: {device}")
 
     # 数据与类别
